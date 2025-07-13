@@ -1,9 +1,13 @@
+// components/ChatWindow.tsx
 "use client";
 
 import React, { FormEvent, useEffect, useRef } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import type { UIMessage, ReasoningUIPart } from "@ai-sdk/ui-utils";
+import type { UIMessage } from "@ai-sdk/ui-utils";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import rehypeRaw from "rehype-raw";
 
 interface ChatWindowProps {
   messages: UIMessage[];
@@ -34,8 +38,6 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
     }
   };
 
-  console.log(messages);
-
   return (
     <Card>
       <CardContent className="flex flex-col h-[500px]">
@@ -46,31 +48,51 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
               key={i}
               className={`
                 flex mb-2
-                ${msg.role === 'user' ? 'justify-end' : 'justify-start'}
+                ${msg.role === "user" ? "justify-end" : "justify-start"}
               `}
             >
               <div
                 className={`
                   inline-block rounded-lg px-4 py-2
                   max-w-[70%]
-                  ${msg.role === 'user'
-                    ? 'bg-blue-100 text-right text-black'
-                    : 'bg-gray-100 text-left text-gray-900'}
+                  ${msg.role === "user"
+                    ? "bg-blue-100 text-right text-black"
+                    : "bg-gray-100 text-left text-gray-900"}
                 `}
               >
                 {msg.parts.map((part, j) => {
                   if (part.type === "text") {
-                    return <div key={j}>{part.text}</div>;
+                    return (
+                      <div key={j} className="prose max-w-none">
+                        <ReactMarkdown
+                          remarkPlugins={[remarkGfm]}
+                          rehypePlugins={[rehypeRaw]}
+                        >
+                          {part.text}
+                        </ReactMarkdown>
+                      </div>
+                    );
                   }
                   if (part.type === "reasoning") {
                     if (!isLoading) return null;
+                    const reasoning = part;
                     return (
                       <pre
                         key={j}
                         className="bg-gray-50 p-2 rounded text-sm font-mono overflow-auto"
                       >
-                        {part.details.map((detail, k) =>
-                          detail.type === 'text' ? detail.text : '<redacted>'
+                        {reasoning.details.map((detail, k) =>
+                          detail.type === "text" ? (
+                            <ReactMarkdown
+                              key={k}
+                              remarkPlugins={[remarkGfm]}
+                              rehypePlugins={[rehypeRaw]}
+                            >
+                              {detail.text}
+                            </ReactMarkdown>
+                          ) : (
+                            <span key={k}>&lt;redacted&gt;</span>
+                          )
                         )}
                       </pre>
                     );
