@@ -1,103 +1,144 @@
-import Image from "next/image";
+"use client";
 
-export default function Home() {
+import React, { useEffect, useState } from "react";
+import { ModelSelector } from "@/components/model-selector";
+import { ChatWindow, ChatMessage } from "@/components/chat-window";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+
+interface Model {
+  title: string;
+  name: string;
+  description: string;
+}
+
+export default function Page() {
+  const [models, setModels] = useState<Model[]>([]);
+  const [loadingModels, setLoadingModels] = useState(true);
+  const [modelsError, setModelsError] = useState<string | null>(null);
+  const [selectedModel, setSelectedModel] = useState<string>("");
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+
+  // fetch models ONCE
+  useEffect(() => {
+    async function loadModels() {
+      try {
+        const res = await fetch("https://app.fireworks.ai/api/models/mini-playground");
+        if (!res.ok) throw new Error(res.statusText);
+        const data: Model[] = await res.json();
+        setModels(data);
+      } catch (err: any) {
+        setModelsError(err.message);
+      } finally {
+        setLoadingModels(false);
+      }
+    }
+    loadModels();
+  }, []);
+
+  // default to first model once list arrives
+  useEffect(() => {
+    if (!selectedModel && models.length > 0) {
+      setSelectedModel(models[0].name);
+    }
+  }, [models, selectedModel]);
+
+  async function handleSend(prompt: string) {
+    // 1) Append the user’s message immediately
+    setMessages((ms) => [
+      ...ms,
+      { role: "user" as const, content: prompt },
+    ]);
+  
+    // 2) Kick off the proxy‐to‐Fireworks endpoint
+    const res = await fetch("/api/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: selectedModel,  // your model.name
+        prompt,
+      }),
+    });
+  
+    if (!res.ok) {
+      console.error("Chat API error:", await res.text());
+      // you might want to append an error message here
+      return;
+    }
+  
+    // 3) Read the SSE stream
+    const reader = res.body!.getReader();
+    const decoder = new TextDecoder();
+    let buf = "";
+  
+    // Start an empty assistant message
+    setMessages((ms) => [
+      ...ms,
+      { role: "assistant" as const, content: "" },
+    ]);
+  
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+  
+      // Decode incoming bytes and accumulate
+      buf += decoder.decode(value, { stream: true });
+      const parts = buf.split(/\r?\n/);
+      buf = parts.pop()!; // leftover partial line
+  
+      for (const line of parts) {
+        // Only lines that start with "data:"
+        if (!line.startsWith("data:")) continue;
+        const payload = line.replace(/^data:\s*/, "");
+  
+        if (payload === "[DONE]") {
+          // Stream finished
+          return;
+        }
+  
+        // Parse the chunk JSON
+        let chunk: any;
+        try {
+          chunk = JSON.parse(payload);
+        } catch (err) {
+          console.warn("Could not JSON.parse SSE payload:", payload);
+          continue;
+        }
+  
+        // Extract the new token (if any)
+        const delta = chunk.choices?.[0]?.delta;
+        const token = delta?.content;
+        if (!token) continue;
+  
+        // Append the token to the last assistant message
+        setMessages((ms) => {
+          const last = ms[ms.length - 1];
+          if (last.role !== "assistant") {
+            // Just in case, start a new assistant message
+            return [...ms, { role: "assistant", content: token }];
+          }
+          // Otherwise, mutate the last one
+          const updated = { ...last, content: last.content + token };
+          return [...ms.slice(0, -1), updated];
+        });
+      }
+    }
+  }
+  
+  
   return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm/6 text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-[family-name:var(--font-geist-mono)] font-semibold">
-              app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+    <div className="p-6 max-w-3xl mx-auto space-y-6">
+      <ModelSelector
+        models={models}
+        loading={loadingModels}
+        error={modelsError}
+        selectedModel={selectedModel}
+        onChange={setSelectedModel}
+      />
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
-        </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+      <ChatWindow
+        messages={messages}
+        onSend={handleSend}
+      />
     </div>
   );
 }
