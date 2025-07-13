@@ -2,8 +2,9 @@
 
 import React, { useEffect, useState } from "react";
 import { ModelSelector } from "@/components/model-selector";
-import { ChatWindow, ChatMessage } from "@/components/chat-window";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ChatWindow } from "@/components/chat-window";
+import { useChat } from '@ai-sdk/react';
+
 
 interface Model {
   title: string;
@@ -16,7 +17,16 @@ export default function Page() {
   const [loadingModels, setLoadingModels] = useState(true);
   const [modelsError, setModelsError] = useState<string | null>(null);
   const [selectedModel, setSelectedModel] = useState<string>("");
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const {
+    messages,
+    input,
+    handleInputChange,
+    handleSubmit,
+    isLoading: isSending,
+  } = useChat({
+    api: "/api/chat",
+    body: { model: selectedModel }, // passed along every request
+  });
 
   // fetch models ONCE
   useEffect(() => {
@@ -41,89 +51,6 @@ export default function Page() {
       setSelectedModel(models[0].name);
     }
   }, [models, selectedModel]);
-
-  async function handleSend(prompt: string) {
-    // 1) Append the user’s message immediately
-    setMessages((ms) => [
-      ...ms,
-      { role: "user" as const, content: prompt },
-    ]);
-  
-    // 2) Kick off the proxy‐to‐Fireworks endpoint
-    const res = await fetch("/api/chat", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: selectedModel,  // your model.name
-        prompt,
-      }),
-    });
-  
-    if (!res.ok) {
-      console.error("Chat API error:", await res.text());
-      // you might want to append an error message here
-      return;
-    }
-  
-    // 3) Read the SSE stream
-    const reader = res.body!.getReader();
-    const decoder = new TextDecoder();
-    let buf = "";
-  
-    // Start an empty assistant message
-    setMessages((ms) => [
-      ...ms,
-      { role: "assistant" as const, content: "" },
-    ]);
-  
-    while (true) {
-      const { value, done } = await reader.read();
-      if (done) break;
-  
-      // Decode incoming bytes and accumulate
-      buf += decoder.decode(value, { stream: true });
-      const parts = buf.split(/\r?\n/);
-      buf = parts.pop()!; // leftover partial line
-  
-      for (const line of parts) {
-        // Only lines that start with "data:"
-        if (!line.startsWith("data:")) continue;
-        const payload = line.replace(/^data:\s*/, "");
-  
-        if (payload === "[DONE]") {
-          // Stream finished
-          return;
-        }
-  
-        // Parse the chunk JSON
-        let chunk: any;
-        try {
-          chunk = JSON.parse(payload);
-        } catch (err) {
-          console.warn("Could not JSON.parse SSE payload:", payload);
-          continue;
-        }
-  
-        // Extract the new token (if any)
-        const delta = chunk.choices?.[0]?.delta;
-        const token = delta?.content;
-        if (!token) continue;
-  
-        // Append the token to the last assistant message
-        setMessages((ms) => {
-          const last = ms[ms.length - 1];
-          if (last.role !== "assistant") {
-            // Just in case, start a new assistant message
-            return [...ms, { role: "assistant", content: token }];
-          }
-          // Otherwise, mutate the last one
-          const updated = { ...last, content: last.content + token };
-          return [...ms.slice(0, -1), updated];
-        });
-      }
-    }
-  }
-  
   
   return (
     <div className="p-6 max-w-3xl mx-auto space-y-6">
@@ -137,7 +64,10 @@ export default function Page() {
 
       <ChatWindow
         messages={messages}
-        onSend={handleSend}
+        inputValue={input}
+        onInputChange={handleInputChange}
+        onSubmit={handleSubmit}
+        isLoading={isSending}
       />
     </div>
   );

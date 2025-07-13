@@ -1,65 +1,33 @@
 // app/api/chat/route.ts
 import { NextRequest } from "next/server";
-import OpenAI from "openai";
+import { createFireworks } from '@ai-sdk/fireworks'
+import { streamText, wrapLanguageModel, extractReasoningMiddleware  } from 'ai';
 
 export const runtime = "edge";
 
-// initialize the SDK to point at Fireworks’ inference endpoint
-const openai = new OpenAI({
-  apiKey: process.env.FIREWORKS_API_KEY,
-  baseURL: "https://api.fireworks.ai/inference/v1",
+const fireworks = createFireworks({
+  apiKey: process.env.FIREWORKS_API_KEY ?? '',
 });
 
-export async function POST(request: NextRequest) {
-  const { model, prompt } = await request.json();
 
-  if (!openai.apiKey) {
+export async function POST(request: NextRequest) {
+  const { model, messages } = await request.json();
+
+  if (!fireworks) {
     return new Response("FIREWORKS_API_KEY not set", { status: 500 });
   }
 
-  // kick off a streaming chat completion
-  const stream = await openai.chat.completions.create({
-    model,
-    messages: [{ role: "user", content: prompt }],
-    stream: true,
+  const enhancedModel = wrapLanguageModel({
+    model: fireworks(model),
+    middleware: extractReasoningMiddleware({ tagName: 'think' }),
   });
 
-  // for (let chunk of stream):
-  //   print(chunk.choices[0].text)
-  // console.log(prompt);
-  // console.log(stream);
-  // debugger;
-
-  // for await (const event of stream) {
-  //   console.log(event);
-  // }
-
-  // pipe the SDK’s ReadableStream right back to the client
-  // Wrap it as a real text/event-stream
-  const encoder = new TextEncoder();
-  const sseStream = new ReadableStream({
-    async start(controller) {
-      try {
-        for await (const chunk of stream) {
-          // chunk is the JSON object
-          const payload = JSON.stringify(chunk);
-          controller.enqueue(encoder.encode(`data: ${payload}\n\n`));
-        }
-        // signal done
-        controller.enqueue(encoder.encode(`data: [DONE]\n\n`));
-      } catch (err) {
-        controller.error(err);
-      } finally {
-        controller.close();
-      }
-    },
+  const result = streamText({
+    model: enhancedModel,
+    messages,
   });
 
-  return new Response(sseStream, {
-    headers: {
-      "Content-Type": "text/event-stream",
-      "Cache-Control": "no-cache, no-transform",
-      Connection: "keep-alive",
-    },
+  return result.toDataStreamResponse({
+    sendReasoning: true,
   });
 }
