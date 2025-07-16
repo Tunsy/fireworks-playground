@@ -28,6 +28,6 @@ export async function POST(request: NextRequest) {
   });
 
   return result.toDataStreamResponse({
-    sendReasoning: true,
+    sendReasoning: false,
   });
 }

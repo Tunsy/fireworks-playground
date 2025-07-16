@@ -22,13 +22,13 @@ export default function Page() {
     input,
     handleInputChange,
     handleSubmit,
-    isLoading: isSending,
+    status,
   } = useChat({
     api: "/api/chat",
-    body: { model: selectedModel }, // passed along every request
+    body: { model: selectedModel },
   });
 
-  // fetch models ONCE
+  // Fetch models on load
   useEffect(() => {
     async function loadModels() {
       try {
@@ -45,7 +45,7 @@ export default function Page() {
     loadModels();
   }, []);
 
-  // default to first model once list arrives
+  // Default to first model once list arrives
   useEffect(() => {
     if (!selectedModel && models.length > 0) {
       setSelectedModel(models[0].name);
@@ -53,22 +53,36 @@ export default function Page() {
   }, [models, selectedModel]);
   
   return (
-    <div className="p-6 max-w-3xl mx-auto space-y-6">
-      <ModelSelector
-        models={models}
-        loading={loadingModels}
-        error={modelsError}
-        selectedModel={selectedModel}
-        onChange={setSelectedModel}
-      />
+    <div className="flex h-screen">
+      {/* LEFT COLUMN */}
+      <aside className="w-132 border-r border-gray-200 px-8 py-6 overflow-auto flex flex-col justify-between">
+        <div>
+          <div className="px-6 pt-2 pb-8 border-gray-200">
+            <h1 className="text-5xl font-bold bg-gradient-to-r from-blue-500 to-pink-500 bg-clip-text text-transparent leading-[1.1]">Model Playground</h1>
+          </div>
+          <ModelSelector
+            models={models}
+            loading={loadingModels}
+            error={modelsError}
+            selectedModel={selectedModel}
+            onChange={setSelectedModel}
+          />
+        </div>
+        <div className="px-4 py-4 text-center text-xs text-gray-500">
+          Made by Jonathan Nguyen
+        </div>
+      </aside>
 
-      <ChatWindow
-        messages={messages}
-        inputValue={input}
-        onInputChange={handleInputChange}
-        onSubmit={handleSubmit}
-        isLoading={isSending}
-      />
+      {/* RIGHT COLUMN */}
+      <main className="flex-1 flex flex-col bg-gray-50 h-full">
+        <ChatWindow
+          messages={messages}
+          inputValue={input}
+          onInputChange={handleInputChange}
+          onSubmit={handleSubmit}
+          status={status}
+        />
+      </main>
     </div>
   );
 }
