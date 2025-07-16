@@ -2,14 +2,15 @@
 
 A simple Next.js + React + Tailwind interface for experimenting with Fireworks AI models in a chat-style playground. Users can pick from a list of serverless models, send prompts, and see streaming responses in real time.
 
----
+See the project live at https://fireworks-playground.vercel.app/
 
-## 🚀 How to run it locally
+
+## How to run it locally
 
 1. **Clone the repo**  
    ```bash
-   git clone https://github.com/your-username/mini-model-playground.git
-   cd mini-model-playground
+   git clone git@github.com:<your-username>/fireworks-playground.git
+   cd fireworks-playground
 
 2. **Install dependencies**
    ```bash
@@ -19,8 +20,8 @@ A simple Next.js + React + Tailwind interface for experimenting with Fireworks A
 
 3. **Setup API KEY**
    ```bash  
-    FIREWORKS_API_KEY=
-4. Start the development server
+    FIREWORKS_API_KEY=<your-api-key>
+4. **Start the development server**
    ```bash
    npm run dev
    # or
