@@ -36,8 +36,12 @@ export default function Page() {
         if (!res.ok) throw new Error(res.statusText);
         const data: Model[] = await res.json();
         setModels(data);
-      } catch (err: any) {
-        setModelsError(err.message);
+      } catch (err) {
+        if (err instanceof Error) {
+          setModelsError(err.message);
+        } else {
+          setModelsError(String(err));
+        }
       } finally {
         setLoadingModels(false);
       }

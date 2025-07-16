@@ -47,13 +47,8 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
       </CardHeader>
       <CardContent>
         { loading ? <p className="text-gray-600">Loading models...</p>: 
-          <Select
-            className="rounded-md border border-gray-200 bg-white px-3 py-2 shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
-            value={selectedModel}
-            onValueChange={onChange}
-          >
-            <div className="text-gray-600 pb-3">Select from a list of Fireworks models</div>
-            <SelectTrigger className="w-full">
+          <Select value={selectedModel} onValueChange={onChange}>
+            <SelectTrigger className="w-full rounded-md border border-gray-200 bg-white px-3 py-2 shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500">
               <SelectValue placeholder="Select a model" />
             </SelectTrigger>
             <SelectContent>
